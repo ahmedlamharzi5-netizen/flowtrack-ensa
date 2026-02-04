@@ -37,9 +37,12 @@
                 <button type="submit" class="btn-login">Se connecter</button>
                 </form>
 
-                
-
-            
+                <!-- Lien d'inscription pour nouveaux étudiants -->
+                <div style="text-align:center; margin-top:1rem;">
+                    <p style="margin-bottom: 0;">
+                        Vous êtes nouveau ? <a href="signup.html" style="color: var(--bleu-clair); text-decoration:none; font-weight:600;">S'inscrire ici</a>
+                    </p>
+                </div>
 
                 <!-- Signup form (hidden by default for compatibility, but primary signup is on signup.html) -->
                 <form id="signupForm" style="display:none; margin-top:12px;">
@@ -79,27 +82,28 @@
                         </form>
 
             <div id="studentDashboard" style="display:none; margin-top:8px;">
-                <h3 id="sdName">—</h3>
-                <p><strong>Filière:</strong> <span id="sdFiliere">—</span></p>
-                <p><strong>Numéro:</strong> <span id="sdNum">—</span></p>
-                <div id="sdStats">
-                    <p>Présences: <span id="sdPres">0</span></p>
-                    <p>Absences: <span id="sdAbs">0</span></p>
+                <h3 id="sdName" style="text-align:center; color:var(--bleu-fonce); font-size:1.8rem; margin-bottom:0.5rem;">—</h3>
+                <div style="text-align:center; margin-bottom:1rem;">
+                    <p style="margin:0; font-size:0.95rem;"><strong style="color:var(--bleu);">Filière:</strong> <span id="sdFiliere">—</span></p>
+                    <p style="margin:0; font-size:0.95rem;"><strong style="color:var(--bleu);">Numéro:</strong> <span id="sdNum">—</span></p>
                 </div>
                 
-
-                <div style="height:220px; max-width:420px; margin:8px auto;">
-                    <canvas id="studentChart"></canvas>
+                <div id="sdStats" style="display:flex; justify-content:center; gap:2rem; margin:0 0 1rem 0; font-weight:600;">
+                    <div style="text-align:center; padding:0.8rem 1.2rem; background:rgba(46, 204, 113, 0.15); border-radius:8px; border-left:4px solid var(--vert);">Présences: <span id="sdPres" style="color:var(--vert); font-size:1.2rem; font-weight:700;">0</span></div>
+                    <div style="text-align:center; padding:0.8rem 1.2rem; background:rgba(231, 76, 60, 0.15); border-radius:8px; border-left:4px solid var(--rouge);">Absences: <span id="sdAbs" style="color:var(--rouge); font-size:1.2rem; font-weight:700;">0</span></div>
                 </div>
-
-                <h4>Historique par semaine</h4>
-                <table class="attendance-table">
+                
+                <h4 style="margin:1rem 0 0.8rem 0; color:var(--bleu-fonce); text-align:center; font-size:1.1rem;">Historique par semaine</h4>
+                <table class="attendance-table" style="margin:0 auto 1.5rem;">
                     <thead><tr><th>Semaine</th><th>Statut</th><th>Module</th><th>Enseignant</th></tr></thead>
                     <tbody id="sdTable"></tbody>
                 </table>
                 <div id="noWeeksMsg" style="display:none; text-align:center; margin-top:12px; color:#666;">Aucune semaine renseignée.</div>
+
+                <div style="height:220px; max-width:420px; margin:0 auto;">
+                    <canvas id="studentChart"></canvas>
+                </div>
             </div>
-        </div>
     </div>
 
     <script src="js/script.js"></script>

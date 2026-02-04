@@ -523,10 +523,16 @@ function parseDATFile(content, filiere, semaine) {
     const lines = content.split('\n');
     let importedCount = 0;
     let invalidCount = 0;
+    let absentMarkedCount = 0;
 
     // Registered students for this filiere
     const registered = getRegisteredStudents(filiere);
     const localStudents = JSON.parse(localStorage.getItem('local_students') || '[]');
+
+    // Determine module and teacher once for this import
+    const modules = getTeacherModules(filiere);
+    const moduleName = (modules && modules.length) ? modules[0] : '';
+    const teacherName = sessionStorage.getItem('current_user_display') || sessionStorage.getItem('current_user') || '';
 
     // Keep a set of keys marked present during this import to avoid duplicates
     const markedThisImport = new Set();
@@ -552,11 +558,6 @@ function parseDATFile(content, filiere, semaine) {
         if (!student) { invalidCount++; return; }
 
         const key = `${filiere}_${semaine}_${student.num}`;
-        // Determine module and teacher from UI/session to attach to imported presence
-        const modules = getTeacherModules(filiere);
-        const moduleName = (modules && modules.length) ? modules[0] : '';
-        const teacherName = sessionStorage.getItem('current_user_display') || sessionStorage.getItem('current_user') || '';
-
         // Only count and set if not already marked present in this import
         if (!markedThisImport.has(key)) {
             const existing = donnees.absences[key];
@@ -570,8 +571,18 @@ function parseDATFile(content, filiere, semaine) {
         // If already present, ignore duplicates silently
     });
 
-    // Note: do NOT mark all other students as 'absent' automatically here.
-    // Absence should be an explicit action; leaving keys unset means "non renseigné".
+    // After processing the import, mark registered students who were NOT found in the .dat as 'absent'
+    // (but do not overwrite an existing 'present' status).
+    registered.forEach(student => {
+        const key = `${filiere}_${semaine}_${student.num}`;
+        if (markedThisImport.has(key)) return; // this student was marked present during import
+        const existing = donnees.absences[key];
+        const alreadyPresent = (existing && (typeof existing === 'string' ? existing === 'present' : existing.statut === 'present'));
+        if (!alreadyPresent) {
+            donnees.absences[key] = { statut: 'absent', module: moduleName || undefined, teacher: teacherName || undefined };
+            absentMarkedCount++;
+        }
+    });
 
     // Persist updates
     const currentUser = sessionStorage.getItem('current_user');
@@ -582,7 +593,7 @@ function parseDATFile(content, filiere, semaine) {
     updateTableau();
     if (typeof updateStatistics === 'function') updateStatistics();
 
-    alert(`Import terminé: ${importedCount} présences importées, ${invalidCount} enregistrements invalides ignorés.`);
+    alert(`Import terminé: ${importedCount} présences importées, ${absentMarkedCount} absences marquées, ${invalidCount} enregistrements invalides ignorés.`);
 }
 
 /**

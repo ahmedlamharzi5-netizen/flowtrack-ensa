@@ -649,7 +649,8 @@ html {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.35rem; /* reduce spacing so table is closer to name */
+    gap: 0.2rem;
+    padding-top: 0;
 }
 
 /* Student detail table: center columns and allow wrapping to avoid misalignment */
@@ -664,9 +665,12 @@ html {
 #studentDashboard .attendance-table {
     width: 100%;
     max-width: 520px;
-    margin: 0.4rem auto 0.6rem auto; /* bring table closer to header/name */
+    margin: 0.2rem auto 0.4rem auto;
     table-layout: fixed;
     overflow: visible;
+    background: var(--blanc);
+    box-shadow: var(--ombre-legere);
+    border-radius: 8px;
 }
 
 #studentDashboard .attendance-table th:nth-child(1),
