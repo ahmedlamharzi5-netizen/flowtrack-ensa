@@ -16,6 +16,7 @@ CREATE TABLE utilisateurs (
     nom VARCHAR(100) NOT NULL,
     prenom VARCHAR(100) NOT NULL,
     email_academique VARCHAR(150) UNIQUE,
+    code VARCHAR(255),
     id_role INT REFERENCES roles(id_role),
     id_groupe INT REFERENCES groupes(id_groupe)
 );

@@ -66,7 +66,7 @@ async function handleApiSignup(req, res) {
         const payload = JSON.parse(body || '{}');
 
         // Basic validation
-        const { nom, prenom, email_academique, num, filiere } = payload;
+        const { nom, prenom, email_academique, num, filiere, code } = payload;
         if (!nom || !prenom || !email_academique) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Missing fields' }));
@@ -84,7 +84,7 @@ async function handleApiSignup(req, res) {
                 await pgClient.query('BEGIN');
                 
                 // Get student role ID (assume it exists from setup-db.js)
-                let roleRes = await pgClient.query("SELECT id_role FROM roles WHERE libelle=$1", ['student']);
+                let roleRes = await pgClient.query("SELECT id_role FROM roles WHERE libelle=$1", ['etudiant']);
                 let roleId = roleRes.rows.length > 0 ? roleRes.rows[0].id_role : 2;
 
                 let groupId = null;
@@ -108,15 +108,15 @@ async function handleApiSignup(req, res) {
                     // Update existing user
                     userId = userCheck.rows[0].id_user;
                     await pgClient.query(
-                        "UPDATE utilisateurs SET nom=$1, prenom=$2, id_groupe=$3 WHERE id_user=$4 RETURNING id_user",
-                        [nom, prenom, groupId, userId]
+                        "UPDATE utilisateurs SET nom=$1, prenom=$2, id_groupe=$3, code=$4 WHERE id_user=$5 RETURNING id_user",
+                        [nom, prenom, groupId, code || 'secret', userId]
                     );
                 } else {
                     // Insert new user
                     const insertRes = await pgClient.query(
-                        `INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, id_role, id_groupe)
-                         VALUES($1,$2,$3,$4,$5,$6) RETURNING id_user`,
-                        [num || null, nom, prenom, email_academique, roleId, groupId]
+                        `INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+                         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id_user`,
+                        [num || null, nom, prenom, email_academique, code || 'secret', roleId, groupId]
                     );
                     userId = insertRes.rows[0].id_user;
                 }
@@ -210,7 +210,7 @@ async function handleApiLogin(req, res) {
         }
 
         const result = await pgClient.query(
-            'SELECT id_user, nom, prenom, email_academique, id_role FROM utilisateurs WHERE email_academique=$1',
+            'SELECT id_user, nom, prenom, email_academique, code, id_role FROM utilisateurs WHERE email_academique=$1',
             [email]
         );
 
@@ -220,8 +220,16 @@ async function handleApiLogin(req, res) {
             return;
         }
 
+        const user = result.rows[0];
+        // Vérifier le code (password)
+        if (user.code !== code) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid code' }));
+            return;
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, user: result.rows[0] }));
+        res.end(JSON.stringify({ ok: true, user: { id_user: user.id_user, nom: user.nom, prenom: user.prenom, email_academique: user.email_academique, id_role: user.id_role } }));
     } catch (err) {
         console.error('Login error', err);
         res.writeHead(500, { 'Content-Type': 'application/json' });

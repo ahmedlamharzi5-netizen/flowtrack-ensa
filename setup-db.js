@@ -63,15 +63,15 @@ async function setupDatabase() {
             ON CONFLICT DO NOTHING;
 
             -- Insérer un professeur de test
-            INSERT INTO utilisateurs(nom, prenom, email_academique, id_role, id_groupe)
-            SELECT 'Aberqi', 'Ahmed', 'ahmed.aberqi@ensa.ma', id_role, id_groupe
+            INSERT INTO utilisateurs(nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 'Aberqi', 'Ahmed', 'ahmed.aberqi@ensa.ma', 'ensa2024', id_role, id_groupe
             FROM roles, groupes
             WHERE roles.libelle = 'professeur' AND groupes.nom_groupe = 'Génie Informatique'
             ON CONFLICT (email_academique) DO NOTHING;
 
             -- Insérer un étudiant de test
-            INSERT INTO utilisateurs(nom, prenom, email_academique, id_role, id_groupe)
-            SELECT 'ANAS', 'Test', 'test@usmba.ac.ma', id_role, id_groupe
+            INSERT INTO utilisateurs(nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 'ANAS', 'Test', 'test@usmba.ac.ma', 'secret', id_role, id_groupe
             FROM roles, groupes
             WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
             ON CONFLICT (email_academique) DO NOTHING;
