@@ -199,6 +199,148 @@ function updateChart(stats) {
 }
 
 /**
+ * Charger les étudiants depuis PostgreSQL pour la filière sélectionnée
+ */
+async function loadStudents() {
+    const filiereSelect = document.getElementById('filiereSelect');
+    const filiere = filiereSelect ? filiereSelect.value : '';
+    const tableBody = document.getElementById('tableBody');
+    const tableContainer = document.getElementById('tableContainer');
+    
+    if (!filiere) {
+        if (tableBody) tableBody.innerHTML = '';
+        if (tableContainer) tableContainer.style.display = 'none';
+        return;
+    }
+
+    try {
+        console.log(`📚 Chargement des étudiants pour la filière: ${filiere}`);
+        
+        // Charger depuis l'API PostgreSQL
+        const response = await fetch(`/api/students?filiere=${encodeURIComponent(filiere)}`);
+        
+        if (!response.ok) {
+            console.warn(`Erreur API (${response.status}), utilisation des données locales`);
+            loadStudentsFromLocal(filiere);
+            return;
+        }
+
+        const students = await response.json();
+        console.log(`✅ ${students.length} étudiants chargés pour ${filiere}`);
+
+        // Remplir le tableau
+        if (tableBody) {
+            tableBody.innerHTML = '';
+            
+            if (students.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Aucun étudiant inscrit dans cette filière</td></tr>';
+                if (tableContainer) tableContainer.style.display = 'block';
+                return;
+            }
+
+            students.forEach((student, index) => {
+                const row = document.createElement('tr');
+                const statusSelect = document.createElement('select');
+                statusSelect.innerHTML = `
+                    <option value="">--</option>
+                    <option value="present">Présent</option>
+                    <option value="absent">Absent</option>
+                `;
+                statusSelect.className = 'status-select';
+                
+                // Récupérer le statut depuis sessionStorage s'il existe
+                const dataKey = `${filiere}_${document.getElementById('semaineSelect').value}_${student.zk_user_id || student.id_user}`;
+                const donnees = JSON.parse(sessionStorage.getItem('donnees') || '{"absences":{}}');
+                if (donnees.absences[dataKey]) {
+                    statusSelect.value = donnees.absences[dataKey];
+                }
+                
+                statusSelect.addEventListener('change', (e) => {
+                    setStatus(student.zk_user_id || student.id_user, filiere, e.target.value);
+                });
+
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${student.nom}</td>
+                    <td>${student.prenom}</td>
+                    <td></td>
+                    <td></td>
+                `;
+                row.querySelector('td:nth-child(4)').appendChild(statusSelect);
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Afficher le tableau
+        if (tableContainer) tableContainer.style.display = 'block';
+        
+        // Mettre à jour les statistiques
+        updateStatistics();
+
+    } catch (error) {
+        console.error('❌ Erreur chargement étudiants:', error.message);
+        loadStudentsFromLocal(filiere);
+    }
+}
+
+/**
+ * Charger les étudiants depuis les données locales (fallback)
+ */
+function loadStudentsFromLocal(filiere) {
+    const tableBody = document.getElementById('tableBody');
+    const tableContainer = document.getElementById('tableContainer');
+    
+    // Chercher dans etudiants (variable globale de script.js)
+    const students = window.etudiants && window.etudiants[filiere] ? window.etudiants[filiere] : [];
+    
+    console.log(`📚 Utilisation des données locales: ${students.length} étudiants pour ${filiere}`);
+
+    if (tableBody) {
+        tableBody.innerHTML = '';
+        
+        if (students.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Aucun étudiant trouvé</td></tr>';
+            if (tableContainer) tableContainer.style.display = 'block';
+            return;
+        }
+
+        students.forEach((student, index) => {
+            const row = document.createElement('tr');
+            const statusSelect = document.createElement('select');
+            statusSelect.innerHTML = `
+                <option value="">--</option>
+                <option value="present">Présent</option>
+                <option value="absent">Absent</option>
+            `;
+            statusSelect.className = 'status-select';
+            
+            const dataKey = `${filiere}_${document.getElementById('semaineSelect').value}_${student.num}`;
+            const donnees = JSON.parse(sessionStorage.getItem('donnees') || '{"absences":{}}');
+            if (donnees.absences[dataKey]) {
+                statusSelect.value = donnees.absences[dataKey];
+            }
+            
+            statusSelect.addEventListener('change', (e) => {
+                setStatus(student.num, filiere, e.target.value);
+            });
+
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${student.nom}</td>
+                <td>${student.prenom}</td>
+                <td></td>
+                <td></td>
+            `;
+            row.querySelector('td:nth-child(4)').appendChild(statusSelect);
+            tableBody.appendChild(row);
+        });
+    }
+
+    if (tableContainer) tableContainer.style.display = 'block';
+    updateStatistics();
+}
+
+/**
  * Initialiser les événements
  */
 function initStatisticsEvents() {
