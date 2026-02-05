@@ -200,6 +200,7 @@ function updateChart(stats) {
 
 /**
  * Charger les étudiants depuis PostgreSQL pour la filière sélectionnée
+ * UNIQUEMENT depuis la base de données - pas de fallback local
  */
 async function loadStudents() {
     const filiereSelect = document.getElementById('filiereSelect');
@@ -214,19 +215,22 @@ async function loadStudents() {
     }
 
     try {
-        console.log(`📚 Chargement des étudiants pour la filière: ${filiere}`);
+        console.log(`📚 Chargement des étudiants PostgreSQL pour la filière: ${filiere}`);
         
         // Charger depuis l'API PostgreSQL
         const response = await fetch(`/api/students?filiere=${encodeURIComponent(filiere)}`);
         
         if (!response.ok) {
-            console.warn(`Erreur API (${response.status}), utilisation des données locales`);
-            loadStudentsFromLocal(filiere);
+            console.error(`❌ Erreur API (${response.status}): Impossible de charger les étudiants`);
+            if (tableBody) {
+                tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:red;">❌ Erreur de connexion à la base de données</td></tr>';
+            }
+            if (tableContainer) tableContainer.style.display = 'block';
             return;
         }
 
         const students = await response.json();
-        console.log(`✅ ${students.length} étudiants chargés pour ${filiere}`);
+        console.log(`✅ ${students.length} étudiants PostgreSQL chargés pour ${filiere}`);
 
         // Remplir le tableau
         if (tableBody) {
@@ -278,66 +282,12 @@ async function loadStudents() {
         updateStatistics();
 
     } catch (error) {
-        console.error('❌ Erreur chargement étudiants:', error.message);
-        loadStudentsFromLocal(filiere);
-    }
-}
-
-/**
- * Charger les étudiants depuis les données locales (fallback)
- */
-function loadStudentsFromLocal(filiere) {
-    const tableBody = document.getElementById('tableBody');
-    const tableContainer = document.getElementById('tableContainer');
-    
-    // Chercher dans etudiants (variable globale de script.js)
-    const students = window.etudiants && window.etudiants[filiere] ? window.etudiants[filiere] : [];
-    
-    console.log(`📚 Utilisation des données locales: ${students.length} étudiants pour ${filiere}`);
-
-    if (tableBody) {
-        tableBody.innerHTML = '';
-        
-        if (students.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Aucun étudiant trouvé</td></tr>';
-            if (tableContainer) tableContainer.style.display = 'block';
-            return;
+        console.error('❌ Erreur chargement étudiants PostgreSQL:', error.message);
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:red;">❌ Erreur: ' + error.message + '</td></tr>';
         }
-
-        students.forEach((student, index) => {
-            const row = document.createElement('tr');
-            const statusSelect = document.createElement('select');
-            statusSelect.innerHTML = `
-                <option value="">--</option>
-                <option value="present">Présent</option>
-                <option value="absent">Absent</option>
-            `;
-            statusSelect.className = 'status-select';
-            
-            const dataKey = `${filiere}_${document.getElementById('semaineSelect').value}_${student.num}`;
-            const donnees = JSON.parse(sessionStorage.getItem('donnees') || '{"absences":{}}');
-            if (donnees.absences[dataKey]) {
-                statusSelect.value = donnees.absences[dataKey];
-            }
-            
-            statusSelect.addEventListener('change', (e) => {
-                setStatus(student.num, filiere, e.target.value);
-            });
-
-            row.innerHTML = `
-                <td>${index + 1}</td>
-                <td>${student.nom}</td>
-                <td>${student.prenom}</td>
-                <td></td>
-                <td></td>
-            `;
-            row.querySelector('td:nth-child(4)').appendChild(statusSelect);
-            tableBody.appendChild(row);
-        });
+        if (tableContainer) tableContainer.style.display = 'block';
     }
-
-    if (tableContainer) tableContainer.style.display = 'block';
-    updateStatistics();
 }
 
 /**

@@ -17,46 +17,8 @@ const users = {
     'admin': { password: 'admin123', name: 'Administrateur', modules: {} }
 };
 
-const etudiants = {
-    isdia: [
-        { num: 1, nom: "IBRAHIM", prenom: "Ahmed" },
-        { num: 2, nom: "HASSAN", prenom: "Sara" },
-        { num: 3, nom: "KHAN", prenom: "Youssef" },
-        { num: 4, nom: "FARRAH", prenom: "Imane" },
-        { num: 5, nom: "MALIK", prenom: "Omar" }
-    ],
-    ilia: [
-        { num: 1, nom: "BEN ALI", prenom: "Aya" },
-        { num: 2, nom: "HAMZA", prenom: "Hamza" },
-        { num: 3, nom: "NOUR", prenom: "Nour" },
-        { num: 4, nom: "REDA", prenom: "Reda" },
-        { num: 5, nom: "SALME", prenom: "Salma" }
-    ],
-    info: [
-        { num: 1, nom: "ANAS", prenom: "Anas" },
-        { num: 2, nom: "KHADIJA", prenom: "Khadija" },
-        { num: 3, nom: "BILAL", prenom: "Bilal" },
-        { num: 4, nom: "MERYEM", prenom: "Meryem" },
-        { num: 5, nom: "HICHAM", prenom: "Hicham" }
-    ],
-    logiciel: [
-        { num: 1, nom: "RANIA", prenom: "Rania" },
-        { num: 2, nom: "YASSINE", prenom: "Yassine" },
-        { num: 3, nom: "AMINE", prenom: "Amine" },
-        { num: 4, nom: "HAJAR", prenom: "Hajar" },
-        { num: 5, nom: "SOUFIANE", prenom: "Soufiane" }
-    ],
-    cyber: [
-        { num: 1, nom: "ZINEB", prenom: "Zineb" },
-        { num: 2, nom: "MEHDI", prenom: "Mehdi" },
-        { num: 3, nom: "IKRAM", prenom: "Ikram" },
-        { num: 4, nom: "FOUAD", prenom: "Fouad" },
-        { num: 5, nom: "LINA", prenom: "Lina" }
-    ]
-};
-
-// Exposer la liste des étudiants globalement pour les autres pages
-window.etudiants = etudiants;
+// ❌ SUPPRIMÉ: Les données des étudiants viennent UNIQUEMENT de PostgreSQL via /api/students
+// Les données hardcoded ne sont plus utilisées
 
 // ===========================
 // STOCKAGE DES DONNÉES
