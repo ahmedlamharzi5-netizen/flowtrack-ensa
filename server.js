@@ -80,28 +80,56 @@ async function handleApiSignup(req, res) {
 
         // If Postgres is available, insert there
         if (pgClient) {
-            // Minimal insertion: ensure role 'student' and group exist
-            await pgClient.query('BEGIN');
-            const roleRes = await pgClient.query("INSERT INTO roles(libelle) VALUES($1) ON CONFLICT (libelle) DO UPDATE SET libelle=EXCLUDED.libelle RETURNING id_role", ['student']);
-            const roleId = roleRes.rows[0].id_role;
+            try {
+                await pgClient.query('BEGIN');
+                
+                // Get student role ID (assume it exists from setup-db.js)
+                let roleRes = await pgClient.query("SELECT id_role FROM roles WHERE libelle=$1", ['student']);
+                let roleId = roleRes.rows.length > 0 ? roleRes.rows[0].id_role : 2;
 
-            let groupId = null;
-            if (filiere) {
-                const grpRes = await pgClient.query("INSERT INTO groupes(nom_groupe) VALUES($1) ON CONFLICT (nom_groupe) DO UPDATE SET nom_groupe=EXCLUDED.nom_groupe RETURNING id_groupe", [filiere]);
-                groupId = grpRes.rows[0].id_groupe;
+                let groupId = null;
+                if (filiere) {
+                    // Try to get group first
+                    let grpRes = await pgClient.query("SELECT id_groupe FROM groupes WHERE nom_groupe ILIKE $1", [`%${filiere}%`]);
+                    if (grpRes.rows.length > 0) {
+                        groupId = grpRes.rows[0].id_groupe;
+                    } else {
+                        // Create new group if doesn't exist
+                        grpRes = await pgClient.query("INSERT INTO groupes(nom_groupe) VALUES($1) RETURNING id_groupe", [filiere]);
+                        groupId = grpRes.rows[0].id_groupe;
+                    }
+                }
+
+                // Check if user already exists
+                let userCheck = await pgClient.query("SELECT id_user FROM utilisateurs WHERE email_academique=$1", [email_academique]);
+                let userId;
+                
+                if (userCheck.rows.length > 0) {
+                    // Update existing user
+                    userId = userCheck.rows[0].id_user;
+                    await pgClient.query(
+                        "UPDATE utilisateurs SET nom=$1, prenom=$2, id_groupe=$3 WHERE id_user=$4 RETURNING id_user",
+                        [nom, prenom, groupId, userId]
+                    );
+                } else {
+                    // Insert new user
+                    const insertRes = await pgClient.query(
+                        `INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, id_role, id_groupe)
+                         VALUES($1,$2,$3,$4,$5,$6) RETURNING id_user`,
+                        [num || null, nom, prenom, email_academique, roleId, groupId]
+                    );
+                    userId = insertRes.rows[0].id_user;
+                }
+
+                await pgClient.query('COMMIT');
+
+                res.writeHead(201, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, id_user: userId }));
+                return;
+            } catch (dbErr) {
+                await pgClient.query('ROLLBACK').catch(() => {});
+                throw dbErr;
             }
-
-            const insertUser = await pgClient.query(
-                `INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, id_role, id_groupe)
-                 VALUES($1,$2,$3,$4,$5,$6)
-                 ON CONFLICT (email_academique) DO UPDATE SET nom=EXCLUDED.nom, prenom=EXCLUDED.prenom RETURNING id_user`,
-                [num || null, nom, prenom, email_academique, roleId, groupId]
-            );
-            await pgClient.query('COMMIT');
-
-            res.writeHead(201, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: true, id_user: insertUser.rows[0].id_user }));
-            return;
         }
 
         // Fallback: save to local JSON file
@@ -162,6 +190,67 @@ function handleApiGetStudent(req, res, query) {
     res.end(JSON.stringify(s));
 }
 
+async function handleApiLogin(req, res) {
+    try {
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const payload = JSON.parse(body || '{}');
+        const { email, code } = payload;
+
+        if (!email || !code) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Email and code required' }));
+            return;
+        }
+
+        if (!pgClient) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Database not available' }));
+            return;
+        }
+
+        const result = await pgClient.query(
+            'SELECT id_user, nom, prenom, email_academique, id_role FROM utilisateurs WHERE email_academique=$1',
+            [email]
+        );
+
+        if (result.rows.length === 0) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'User not found' }));
+            return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, user: result.rows[0] }));
+    } catch (err) {
+        console.error('Login error', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal error' }));
+    }
+}
+
+async function handleApiGetStudents(req, res, query) {
+    const filiere = query.filiere;
+    if (!filiere || !pgClient) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify([]));
+        return;
+    }
+
+    try {
+        const result = await pgClient.query(
+            'SELECT id_user, nom, prenom, email_academique, zk_user_id as num FROM utilisateurs WHERE id_groupe IN (SELECT id_groupe FROM groupes WHERE nom_groupe ILIKE $1)',
+            [`%${filiere}%`]
+        );
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result.rows));
+    } catch (err) {
+        console.error('Get students error', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'DB error' }));
+    }
+}
+
 const server = http.createServer((req, res) => {
     const parsed = url.parse(req.url, true);
     // API routes
@@ -169,8 +258,16 @@ const server = http.createServer((req, res) => {
         handleApiSignup(req, res);
         return;
     }
+    if (parsed.pathname === '/api/login' && req.method === 'POST') {
+        handleApiLogin(req, res);
+        return;
+    }
     if (parsed.pathname === '/api/student' && req.method === 'GET') {
         handleApiGetStudent(req, res, parsed.query);
+        return;
+    }
+    if (parsed.pathname === '/api/students' && req.method === 'GET') {
+        handleApiGetStudents(req, res, parsed.query);
         return;
     }
 

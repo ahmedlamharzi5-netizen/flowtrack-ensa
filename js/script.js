@@ -215,7 +215,7 @@ function initializeWeeks() {
 /**
  * Gérer la connexion de l'utilisateur
  */
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
 
     const username = document.getElementById('username').value.trim();
@@ -223,37 +223,62 @@ function handleLogin(e) {
     const errorMessage = document.getElementById('errorMessage');
 
     console.log('Tentative de connexion:', username, password);
-    console.log('Utilisateurs disponibles:', Object.keys(users));
 
-    // Vérifier les identifiants
-    if (!users[username]) {
-        console.log('Utilisateur non trouvé:', username);
-        errorMessage.textContent = '❌ Nom d\'utilisateur ou mot de passe incorrect';
-        errorMessage.style.display = 'block';
+    // First check local hardcoded users (for professors)
+    if (users[username]) {
+        if (users[username].password !== password) {
+            errorMessage.textContent = '❌ Nom d\'utilisateur ou mot de passe incorrect';
+            errorMessage.style.display = 'block';
+            return;
+        }
+        // Local professor login
+        errorMessage.style.display = 'none';
+        sessionStorage.setItem('user_logged_in', 'true');
+        sessionStorage.setItem('current_user', username);
+        sessionStorage.setItem('current_user_display', users[username].name || username);
+        sessionStorage.setItem('current_user_modules', JSON.stringify(users[username].modules || {}));
+        setTimeout(() => {
+            window.location.href = 'gestion.html';
+        }, 500);
         return;
     }
 
-    if (users[username].password !== password) {
-        console.log('Mot de passe incorrect pour:', username);
-        errorMessage.textContent = '❌ Nom d\'utilisateur ou mot de passe incorrect';
+    // Try API login for students
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: username, code: password })
+        });
+
+        if (!res.ok) {
+            errorMessage.textContent = '❌ Email ou code incorrect';
+            errorMessage.style.display = 'block';
+            return;
+        }
+
+        const data = await res.json();
+        if (!data.ok && !data.user) {
+            errorMessage.textContent = '❌ Email ou code incorrect';
+            errorMessage.style.display = 'block';
+            return;
+        }
+
+        const user = data.user || data;
+        errorMessage.style.display = 'none';
+        sessionStorage.setItem('user_logged_in', 'true');
+        sessionStorage.setItem('current_user', user.email_academique);
+        sessionStorage.setItem('current_user_display', `${user.prenom} ${user.nom}`);
+        sessionStorage.setItem('user_id', user.id_user);
+
+        setTimeout(() => {
+            window.location.href = 'student.html';
+        }, 500);
+    } catch (err) {
+        console.error('Login error:', err);
+        errorMessage.textContent = '❌ Erreur de connexion. Vérifiez votre email ou code.';
         errorMessage.style.display = 'block';
-        return;
     }
-
-    console.log('Connexion réussie pour:', username);
-
-    // Authentification réussie
-    errorMessage.style.display = 'none';
-    sessionStorage.setItem('user_logged_in', 'true');
-    sessionStorage.setItem('current_user', username);
-    // store display name and modules mapping for this user
-    sessionStorage.setItem('current_user_display', users[username].name || username);
-    sessionStorage.setItem('current_user_modules', JSON.stringify(users[username].modules || {}));
-
-    // Redirection après 500ms
-    setTimeout(() => {
-        window.location.href = 'gestion.html';
-    }, 500);
 }
 
 /**
@@ -318,7 +343,7 @@ function logout() {
 /**
  * Charger les étudiants de la filière sélectionnée
  */
-function loadStudents() {
+async function loadStudents() {
     const filiere = document.getElementById('filiereSelect').value;
     const semaineSelect = document.getElementById('semaineSelect');
 
@@ -329,6 +354,26 @@ function loadStudents() {
         document.getElementById('tableContainer').style.display = 'none';
         document.getElementById('emptyState').style.display = 'block';
         return;
+    }
+
+    // Charger les étudiants depuis l'API
+    try {
+        const res = await fetch(`/api/students?filiere=${encodeURIComponent(filiere)}`);
+        if (res.ok) {
+            const data = await res.json();
+            // Normaliser et stocker les étudiants
+            if (Array.isArray(data) && data.length > 0) {
+                if (!etudiants[filiere]) etudiants[filiere] = [];
+                etudiants[filiere] = data.map(s => ({
+                    num: s.num || s.id_user,
+                    nom: (s.nom || '').toUpperCase(),
+                    prenom: s.prenom || '',
+                    email: s.email_academique || ''
+                }));
+            }
+        }
+    } catch (err) {
+        console.warn('Could not load students from API:', err);
     }
 
     updateTableau();
