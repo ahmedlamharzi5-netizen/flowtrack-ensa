@@ -1,0 +1,37 @@
+# Variables d'environnement (sensibles)
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Fichiers de système
+.DS_Store
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Build
+dist/
+build/
+
+# Données locales
+data/donnees_global.json
+data/students.json
+
+# Fichiers temporaires
+tmp/
+temp/
+*.tmp

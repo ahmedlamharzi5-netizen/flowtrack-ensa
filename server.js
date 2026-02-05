@@ -1,17 +1,32 @@
+require('dotenv').config();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-// Optional: use PG if DATABASE_URL is provided
+// ===== DATABASE CONNECTION =====
 let pgClient = null;
-if (process.env.DATABASE_URL) {
+let isDbConnected = false;
+
+async function initDatabase() {
+    if (!process.env.DATABASE_URL) {
+        console.log('⚠️  DATABASE_URL not set. Using JSON fallback mode.');
+        return false;
+    }
+
     try {
         const { Client } = require('pg');
         pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-        pgClient.connect().then(() => console.log('Connected to Postgres')).catch(err => console.error('PG connect error', err));
+        await pgClient.connect();
+        console.log('✅ Connected to PostgreSQL database');
+        isDbConnected = true;
+        return true;
     } catch (err) {
-        console.warn('pg module not available or failed to initialize:', err.message);
+        console.error('❌ PostgreSQL connection failed:', err.message);
+        console.log('⚠️  Falling back to JSON storage mode');
+        pgClient = null;
+        isDbConnected = false;
+        return false;
     }
 }
 
@@ -170,6 +185,31 @@ const server = http.createServer((req, res) => {
     serveStatic(filePath, res);
 });
 
-server.listen(3005, () => {
-    console.log('Server running at http://localhost:3005');
+const PORT = process.env.PORT || 3005;
+
+// Initialize and start server
+initDatabase().then(() => {
+    server.listen(PORT, () => {
+        console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║          🎓 FlowTrack - ENSA Fès Server                   ║
+╚═══════════════════════════════════════════════════════════╝
+
+📊 Database: ${isDbConnected ? '✅ PostgreSQL Connected' : '⚠️  JSON Fallback Mode'}
+🚀 Server: http://localhost:${PORT}
+📁 Static: Serving HTML/CSS/JS files
+🔌 API: /api/signup, /api/student
+
+🌐 Access:
+  • Local:     http://localhost:${PORT}
+  • Gestion:   http://localhost:${PORT}/gestion.html
+  • Étudiant:  http://localhost:${PORT}/student.html
+
+Press CTRL+C to stop
+═══════════════════════════════════════════════════════════
+        `);
+    });
+}).catch(err => {
+    console.error('Failed to initialize:', err);
+    process.exit(1);
 });
