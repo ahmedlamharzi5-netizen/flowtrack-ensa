@@ -259,6 +259,17 @@ async function handleApiGetStudents(req, res, query) {
     }
 }
 
+async function handleApiStatus(req, res) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+        status: 'ok',
+        app: 'FlowTrack v1.0',
+        database: isDbConnected ? 'connected' : 'disconnected',
+        databaseUrl: process.env.DATABASE_URL ? 'set' : 'not set',
+        environment: process.env.NODE_ENV || 'development'
+    }));
+}
+
 async function handleApiInitDb(req, res) {
     if (!pgClient) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -330,6 +341,10 @@ async function handleApiInitDb(req, res) {
 const server = http.createServer((req, res) => {
     const parsed = url.parse(req.url, true);
     // API routes
+    if (parsed.pathname === '/api/status' && req.method === 'GET') {
+        handleApiStatus(req, res);
+        return;
+    }
     if (parsed.pathname === '/api/signup' && req.method === 'POST') {
         handleApiSignup(req, res);
         return;
