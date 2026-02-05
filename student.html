@@ -154,39 +154,77 @@
             } catch (e) { /* ignore */ }
         });
 
-        function handleStudentLogin(e) {
+        async function handleStudentLogin(e) {
             e.preventDefault();
             const email = document.getElementById('studentEmail').value.trim();
             const code = document.getElementById('studentCode').value.trim();
             const msg = document.getElementById('studentMsg');
 
-            const local = JSON.parse(localStorage.getItem('local_students') || '[]');
-            console.log('student login attempt:', { email, code, localCount: local.length });
+            console.log('student login attempt:', { email, code });
 
-            // Try multiple matching strategies: full academic email + code, deviceId, num
-            let s = local.find(x => x.email_academique === email && x.code === code);
-            if (!s) s = local.find(x => String(x.num) === String(email) && x.code === code);
-            if (!s) s = local.find(x => String(x.deviceId) === String(email) && x.code === code);
-            // allow email without domain if possible
-            if (!s && email && !email.includes('@')) {
-                s = local.find(x => x.email_academique && x.email_academique.split('@')[0] === email && x.code === code);
-            }
-
-            if (!s) {
-                msg.style.display='block'; msg.textContent='Utilisateur introuvable ou code incorrect.'; 
-                console.warn('Local students:', local);
-                return;
-            }
-
-            // Persist a simple student session so next visits show the dashboard
             try {
-                sessionStorage.setItem('current_user', s.email_academique);
-                sessionStorage.setItem('current_user_display', (s.nom + ' ' + s.prenom).trim());
-                // Keep a local persistent pointer so user remains recognized across browser restarts
-                localStorage.setItem('last_student_email', s.email_academique);
-            } catch (e) { /* ignore */ }
+                // Try API login first (PostgreSQL)
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
 
-            showStudentDashboard(s);
+                const data = await response.json();
+
+                if (response.ok && data.ok) {
+                    // Login successful from API
+                    const s = {
+                        id_user: data.user.id_user,
+                        nom: data.user.nom,
+                        prenom: data.user.prenom,
+                        email_academique: data.user.email_academique,
+                        code: code
+                    };
+                    
+                    // Store in session
+                    try {
+                        sessionStorage.setItem('current_user', s.email_academique);
+                        sessionStorage.setItem('current_user_display', (s.nom + ' ' + s.prenom).trim());
+                        localStorage.setItem('last_student_email', s.email_academique);
+                    } catch (e) { /* ignore */ }
+
+                    showStudentDashboard(s);
+                    return;
+                }
+
+                // If API fails, try localStorage fallback
+                const local = JSON.parse(localStorage.getItem('local_students') || '[]');
+                console.log('Trying localStorage fallback. Local students:', local.length);
+
+                // Try multiple matching strategies
+                let s = local.find(x => x.email_academique === email && x.code === code);
+                if (!s) s = local.find(x => String(x.num) === String(email) && x.code === code);
+                if (!s) s = local.find(x => String(x.deviceId) === String(email) && x.code === code);
+                if (!s && email && !email.includes('@')) {
+                    s = local.find(x => x.email_academique && x.email_academique.split('@')[0] === email && x.code === code);
+                }
+
+                if (!s) {
+                    msg.style.display='block'; 
+                    msg.textContent='❌ Utilisateur introuvable ou code incorrect.'; 
+                    console.warn('Login failed - user not found in API or localStorage');
+                    return;
+                }
+
+                // Store in session
+                try {
+                    sessionStorage.setItem('current_user', s.email_academique);
+                    sessionStorage.setItem('current_user_display', (s.nom + ' ' + s.prenom).trim());
+                    localStorage.setItem('last_student_email', s.email_academique);
+                } catch (e) { /* ignore */ }
+
+                showStudentDashboard(s);
+            } catch (err) {
+                console.error('Login error:', err);
+                msg.style.display='block'; 
+                msg.textContent='❌ Erreur de connexion: ' + err.message;
+            }
         }
 
         // Show dashboard for a student object

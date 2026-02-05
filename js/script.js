@@ -934,6 +934,9 @@ async function handleSignupSubmit(e) {
             return;
         }
 
+        // SUCCESS: Save ALSO to localStorage for immediate access
+        saveLocalStudent({ nom, prenom, num, filiere, email_academique: email, code, deviceId });
+        
         if (msg) { msg.style.display='block'; msg.style.color='#080'; msg.textContent = 'Inscription réussie.'; }
         setTimeout(() => {
             // If modal exists, close it; otherwise redirect back to student login
