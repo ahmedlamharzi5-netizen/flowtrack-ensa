@@ -25,6 +25,7 @@ async function resetDatabase() {
 
         console.log('🗑️  Suppression des tables...');
         await client.query(`
+            DROP TABLE IF EXISTS attendance CASCADE;
             DROP TABLE IF EXISTS logs_pointage CASCADE;
             DROP TABLE IF EXISTS seances CASCADE;
             DROP TABLE IF EXISTS matieres CASCADE;

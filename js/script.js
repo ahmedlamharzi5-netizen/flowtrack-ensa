@@ -64,51 +64,43 @@ window.etudiants = etudiants;
 
 let donnees = { absences: {} };
 
-// Charger les données (priorité: per-user puis global)
-async function loadData() {
-    const currentUser = sessionStorage.getItem('current_user');
-
+// 🔥 CHARGER LES DONNÉES DEPUIS POSTGRESQL (PARTAGÉES ENTRE TOUS LES PROFS)
+async function loadAttendanceFromDB(filiere, semaine) {
     try {
-        // Chargement per-user si disponible
-        if (currentUser) {
-            const savedData = localStorage.getItem('donnees_' + currentUser);
-            if (savedData) {
-                donnees = JSON.parse(savedData);
-            }
+        const response = await fetch(`/api/attendance?filiere=${encodeURIComponent(filiere)}&semaine=${semaine}`);
+        if (!response.ok) {
+            console.warn(`⚠️ Erreur chargement absences PostgreSQL (${response.status})`);
+            return;
         }
-
-        // Sinon utiliser la copie globale (ou charger un fichier fallback `/data/donnees_global.json`)
-        if (!donnees || !donnees.absences) {
-            const globalSaved = localStorage.getItem('donnees_global');
-            if (globalSaved) {
-                donnees = JSON.parse(globalSaved);
-            } else {
-                // Try loading packaged sample data when no saved global exists
-                try {
-                    const resp = await fetch('/data/donnees_global.json');
-                    if (resp.ok) {
-                        const sample = await resp.json();
-                        if (sample && sample.absences) donnees = sample;
-                        else donnees = { absences: {} };
-                    } else {
-                        donnees = { absences: {} };
-                    }
-                } catch (e) {
-                    // network or file not present
-                    donnees = { absences: {} };
+        const data = await response.json();
+        if (data.absences) {
+            // REMPLACER les données locales par les données PostgreSQL (pas fusionner!)
+            // Cela garantit que TOUS les profs voient la MÊME chose
+            for (const key of Object.keys(donnees.absences)) {
+                if (key.startsWith(`${filiere}_${semaine}_`)) {
+                    delete donnees.absences[key];
                 }
             }
+            Object.assign(donnees.absences, data.absences);
+            console.log(`✅ ${Object.keys(data.absences).length} absences chargées de PostgreSQL pour ${filiere} S${semaine}`);
         }
+    } catch (err) {
+        console.error(`❌ Erreur connexion PostgreSQL pour ${filiere} S${semaine}:`, err.message);
+    }
+}
+
+// Charger les données GLOBALES (PAS par utilisateur - partagées entre tous les profs!)
+async function loadData() {
+    try {
+        // 🔥 Initialiser avec données vides - on charge depuis PostgreSQL à chaque fois!
+        donnees = { absences: {} };
 
         // Exposer globalement
         window.donnees = donnees;
 
-        // Persister pour cohérence
-        sessionStorage.setItem('donnees', JSON.stringify(donnees));
-        localStorage.setItem('donnees_global', JSON.stringify(donnees));
-
         // Signaler que les données sont prêtes
         window.dispatchEvent(new Event('donneesLoaded'));
+        console.log('✅ Données initialisées - prêtes à charger depuis PostgreSQL');
     } catch (error) {
         console.error('Erreur lors du chargement des donnees:', error);
         donnees = { absences: {} };
@@ -270,9 +262,16 @@ async function handleLogin(e) {
         sessionStorage.setItem('current_user', user.email_academique);
         sessionStorage.setItem('current_user_display', `${user.prenom} ${user.nom}`);
         sessionStorage.setItem('user_id', user.id_user);
+        // 🔥 Store modules if returned from API
+        if (user.modules) {
+            sessionStorage.setItem('current_user_modules', JSON.stringify(user.modules));
+        }
 
+        // Redirect to appropriate page based on role
+        // id_role=2 is professor
+        const redirectPage = user.id_role === 2 ? 'gestion.html' : 'student.html';
         setTimeout(() => {
-            window.location.href = 'student.html';
+            window.location.href = redirectPage;
         }, 500);
     } catch (err) {
         console.error('Login error:', err);
@@ -393,7 +392,7 @@ function getRegisteredStudents(filiere) {
 /**
  * Mettre à jour le tableau des absences
  */
-function updateTableau() {
+async function updateTableau() {
     const filiere = document.getElementById('filiereSelect').value;
     const semaine = document.getElementById('semaineSelect').value;
     const tableContainer = document.getElementById('tableContainer');
@@ -404,6 +403,9 @@ function updateTableau() {
         emptyState.style.display = 'block';
         return;
     }
+
+    // 🔥 CHARGER LES DONNÉES DESDE POSTGRESQL
+    await loadAttendanceFromDB(filiere, semaine);
 
     // Afficher le tableau
     tableContainer.style.display = 'block';
@@ -471,17 +473,33 @@ function setStatus(filiere, semaine, num, status) {
         donnees.absences[key] = { statut: status, module: moduleName || undefined, teacher: teacherName || undefined };
     }
 
-    // Sauvegarder en localStorage pour persister par utilisateur
-    const currentUser = sessionStorage.getItem('current_user');
-    if (currentUser) {
-        localStorage.setItem('donnees_' + currentUser, JSON.stringify(donnees));
-    }
-    // Aussi dans sessionStorage pour la session
-    sessionStorage.setItem('donnees', JSON.stringify(donnees));
-    // Signaler la mise  a0 jour des donn ees
+    // 🔥 SAUVEGARDER DANS POSTGRESQL (NEW)
+    fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filiere, semaine, num, statut: status })
+    })
+    .then(res => {
+        if (!res.ok) console.warn(`⚠️ Erreur API attendance (${res.status}):`, res.statusText);
+        return res.json();
+    })
+    .then(data => {
+        if (data.ok) {
+            console.log(`✅ Statut sauvegardé PostgreSQL: ${filiere} S${semaine} #${num} = ${status}`);
+        } else {
+            console.warn('⚠️ API error:', data.error);
+        }
+    })
+    .catch(err => console.error('❌ Erreur connexion PostgreSQL:', err.message));
+
+    // 🔥 NE PAS sauvegarder en localStorage - SEULE la BD PostgreSQL compte!
+    // Cela garantit que les données sont PARTAGÉES entre tous les profs
+    // (localStorage n'est utilisé que comme cache temporaire)
+    
+    // Signaler la mise à jour des données
     window.dispatchEvent(new Event('donneesUpdated'));
 
-    // Mettre  a0 jour les boutons visuels
+    // Mettre à jour les boutons visuels
     updateTableau();
     
     // Mettre à jour les statistiques

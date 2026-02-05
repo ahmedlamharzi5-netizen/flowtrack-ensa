@@ -63,21 +63,52 @@ async function setupDatabase() {
             ON CONFLICT DO NOTHING;
 
             -- Insérer un professeur de test
-            INSERT INTO utilisateurs(nom, prenom, email_academique, code, id_role, id_groupe)
-            SELECT 'Aberqi', 'Ahmed', 'ahmed.aberqi@ensa.ma', 'ensa2024', id_role, id_groupe
+            INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 100, 'Aberqi', 'Ahmed', 'ahmed.aberqi@ensa.ma', 'ensa2024', id_role, id_groupe
             FROM roles, groupes
             WHERE roles.libelle = 'professeur' AND groupes.nom_groupe = 'Génie Informatique'
             ON CONFLICT (email_academique) DO NOTHING;
 
-            -- Insérer un étudiant de test
-            INSERT INTO utilisateurs(nom, prenom, email_academique, code, id_role, id_groupe)
-            SELECT 'ANAS', 'Test', 'test@usmba.ac.ma', 'secret', id_role, id_groupe
+            -- Insérer des étudiants de test
+            INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 1, 'ANAS', 'Test', 'test@usmba.ac.ma', 'secret', id_role, id_groupe
+            FROM roles, groupes
+            WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
+            ON CONFLICT (email_academique) DO NOTHING;
+            
+            INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 2, 'IBRAHIM', 'Ahmed', 'ibrahim@usmba.ac.ma', 'secret', id_role, id_groupe
+            FROM roles, groupes
+            WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
+            ON CONFLICT (email_academique) DO NOTHING;
+            
+            INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 3, 'HASSAN', 'Sara', 'hassan@usmba.ac.ma', 'secret', id_role, id_groupe
+            FROM roles, groupes
+            WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
+            ON CONFLICT (email_academique) DO NOTHING;
+            
+            INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 4, 'KHAN', 'Youssef', 'khan@usmba.ac.ma', 'secret', id_role, id_groupe
+            FROM roles, groupes
+            WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
+            ON CONFLICT (email_academique) DO NOTHING;
+            
+            INSERT INTO utilisateurs(zk_user_id, nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 5, 'FARRAH', 'Imane', 'farrah@usmba.ac.ma', 'secret', id_role, id_groupe
             FROM roles, groupes
             WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
             ON CONFLICT (email_academique) DO NOTHING;
 
             -- Insérer une matière de test
             INSERT INTO matieres(nom_matiere, semestre) VALUES ('Algorithme', 'S1')
+            ON CONFLICT DO NOTHING;
+            
+            -- Assigner le professeur à la matière pour la filière info
+            INSERT INTO professeur_matieres(id_professeur, id_matiere, id_groupe)
+            SELECT u.id_user, m.id_matiere, g.id_groupe
+            FROM utilisateurs u, matieres m, groupes g
+            WHERE u.email_academique = 'ahmed.aberqi@ensa.ma' AND m.nom_matiere = 'Algorithme' AND g.nom_groupe = 'Génie Informatique'
             ON CONFLICT DO NOTHING;
         `;
 

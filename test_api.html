@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Attendance</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        h1 { color: #333; }
+        .test-section { margin: 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid #007bff; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: #666; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test API Attendance</h1>
+        
+        <div class="test-section">
+            <h2>Test GET /api/attendance</h2>
+            <button onclick="testGetAttendance()">Tester GET (info, semaine 1)</button>
+            <div id="getResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test POST /api/attendance</h2>
+            <button onclick="testPostAttendance()">Tester POST (présent)</button>
+            <div id="postResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Statut du Serveur</h2>
+            <button onclick="testServerStatus()">Vérifier Statut</button>
+            <div id="statusResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function displayResult(elementId, data, isError = false) {
+            const elem = document.getElementById(elementId);
+            elem.innerHTML = `
+                <p class="${isError ? 'error' : 'success'}">
+                    ${isError ? '❌ Erreur:' : '✅ Réponse:'}
+                </p>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        async function testGetAttendance() {
+            try {
+                const response = await fetch('/api/attendance?filiere=info&semaine=1');
+                const data = await response.json();
+                displayResult('getResult', data);
+            } catch (err) {
+                displayResult('getResult', {error: err.message}, true);
+            }
+        }
+
+        async function testPostAttendance() {
+            try {
+                const response = await fetch('/api/attendance', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        filiere: 'info',
+                        semaine: 1,
+                        num: 1,
+                        statut: 'present'
+                    })
+                });
+                const data = await response.json();
+                displayResult('postResult', {status: response.status, ...data});
+            } catch (err) {
+                displayResult('postResult', {error: err.message}, true);
+            }
+        }
+
+        async function testServerStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                displayResult('statusResult', data);
+            } catch (err) {
+                displayResult('statusResult', {error: err.message}, true);
+            }
+        }
+
+        // Test au chargement
+        window.addEventListener('load', () => {
+            console.log('📋 Page de test API chargée');
+            console.log('Essayez les boutons pour tester les API');
+        });
+    </script>
+</body>
+</html>
