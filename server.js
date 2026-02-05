@@ -259,6 +259,74 @@ async function handleApiGetStudents(req, res, query) {
     }
 }
 
+async function handleApiInitDb(req, res) {
+    if (!pgClient) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Database not available' }));
+        return;
+    }
+
+    try {
+        console.log('\n🔄 Initializing database...');
+        
+        // Drop existing tables
+        await pgClient.query(`
+            DROP TABLE IF EXISTS logs_pointage CASCADE;
+            DROP TABLE IF EXISTS seances CASCADE;
+            DROP TABLE IF EXISTS matieres CASCADE;
+            DROP TABLE IF EXISTS utilisateurs CASCADE;
+            DROP TABLE IF EXISTS groupes CASCADE;
+            DROP TABLE IF EXISTS roles CASCADE;
+        `);
+        console.log('✅ Old tables dropped');
+
+        // Read and execute schema
+        const schemaPath = path.join(__dirname, 'db', 'schema.sql');
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        await pgClient.query(schemaSql);
+        console.log('✅ Schema created');
+
+        // Insert test data
+        const testData = `
+            INSERT INTO roles(libelle) VALUES ('professeur'), ('etudiant'), ('admin')
+            ON CONFLICT (libelle) DO NOTHING;
+
+            INSERT INTO groupes(nom_groupe, niveau) VALUES 
+                ('ISDIA', '3'),
+                ('ILIA', '3'),
+                ('Génie Informatique', '3'),
+                ('Génie Logiciel', '3'),
+                ('Cybersécurité', '3')
+            ON CONFLICT DO NOTHING;
+
+            INSERT INTO utilisateurs(nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 'Aberqi', 'Ahmed', 'ahmed.aberqi@ensa.ma', 'ensa2024', id_role, id_groupe
+            FROM roles, groupes
+            WHERE roles.libelle = 'professeur' AND groupes.nom_groupe = 'Génie Informatique'
+            ON CONFLICT (email_academique) DO NOTHING;
+
+            INSERT INTO utilisateurs(nom, prenom, email_academique, code, id_role, id_groupe)
+            SELECT 'ANAS', 'Test', 'test@usmba.ac.ma', 'secret', id_role, id_groupe
+            FROM roles, groupes
+            WHERE roles.libelle = 'etudiant' AND groupes.nom_groupe = 'Génie Informatique'
+            ON CONFLICT (email_academique) DO NOTHING;
+
+            INSERT INTO matieres(nom_matiere, semestre) VALUES ('Algorithme', 'S1')
+            ON CONFLICT DO NOTHING;
+        `;
+
+        await pgClient.query(testData);
+        console.log('✅ Test data inserted\n');
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, message: 'Database initialized successfully' }));
+    } catch (err) {
+        console.error('Database init error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to initialize database: ' + err.message }));
+    }
+}
+
 const server = http.createServer((req, res) => {
     const parsed = url.parse(req.url, true);
     // API routes
@@ -276,6 +344,10 @@ const server = http.createServer((req, res) => {
     }
     if (parsed.pathname === '/api/students' && req.method === 'GET') {
         handleApiGetStudents(req, res, parsed.query);
+        return;
+    }
+    if (parsed.pathname === '/api/init-db' && req.method === 'POST') {
+        handleApiInitDb(req, res);
         return;
     }
 

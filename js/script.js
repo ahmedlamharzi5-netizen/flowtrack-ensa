@@ -802,6 +802,12 @@ function renderStudentHistoryModal(filiere, num) {
 // ===========================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Handle student login form (student.html)
+    const studentLoginForm = document.getElementById('studentLoginForm');
+    if (studentLoginForm) {
+        studentLoginForm.addEventListener('submit', handleStudentLogin);
+    }
+
     const signupBtn = document.getElementById('signupBtn');
     if (signupBtn) signupBtn.addEventListener('click', openSignupModal);
 
@@ -811,6 +817,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const signupForm = document.getElementById('signupForm');
     if (signupForm) signupForm.addEventListener('submit', handleSignupSubmit);
 });
+
+async function handleStudentLogin(e) {
+    e.preventDefault();
+    const email = document.getElementById('studentEmail').value.trim();
+    const code = document.getElementById('studentCode').value.trim();
+    const msg = document.getElementById('studentMsg');
+
+    if (!email || !code) {
+        if (msg) {
+            msg.style.display = 'block';
+            msg.textContent = 'Veuillez remplir tous les champs';
+        }
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+            if (msg) {
+                msg.style.display = 'block';
+                msg.textContent = '❌ Utilisateur introuvable ou code incorrect.';
+            }
+            return;
+        }
+
+        const user = data.user;
+        if (msg) {
+            msg.style.display = 'block';
+            msg.style.color = '#080';
+            msg.textContent = 'Connexion réussie...';
+        }
+
+        // Store session info
+        sessionStorage.setItem('user_logged_in', 'true');
+        sessionStorage.setItem('current_user', user.email_academique);
+        sessionStorage.setItem('current_user_display', `${user.prenom} ${user.nom}`);
+        sessionStorage.setItem('user_id', user.id_user);
+
+        // Redirect after 500ms
+        setTimeout(() => {
+            window.location.href = 'student.html?logged=true';
+        }, 500);
+    } catch (err) {
+        console.error('Student login error:', err);
+        if (msg) {
+            msg.style.display = 'block';
+            msg.textContent = '❌ Erreur de connexion. Vérifiez votre email et votre code.';
+        }
+    }
+}
 
 function openSignupModal() {
     const m = document.getElementById('signupModal');
